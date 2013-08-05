@@ -138,7 +138,7 @@ public class HBaseClient {
       return Deferred.fromError(e);  
     }
     try {
-      bs.setRanges(Collections.singletonList(new Range(new Text(get.getKey()))));
+      bs.setRanges(Collections.singletonList(new Range(new Text(get.key()))));
       if (get.getFamily() != null || get.getQualifier() != null) {
         if (get.getQualifier() != null)
           bs.fetchColumn(new Text(get.getFamily()), new Text(get.getQualifier()));
