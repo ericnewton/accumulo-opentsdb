@@ -14,10 +14,13 @@ import org.apache.accumulo.core.data.Value;
 import org.apache.accumulo.core.iterators.user.RegExFilter;
 import org.apache.accumulo.core.util.PeekingIterator;
 import org.apache.hadoop.io.Text;
+import org.apache.log4j.Logger;
 
 import com.stumbleupon.async.Deferred;
 
 public class Scanner {
+  
+  private Logger log = Logger.getLogger(Scanner.class);
   
   private final Connector conn;
   private final byte[] table;
@@ -41,12 +44,14 @@ public class Scanner {
   public Deferred<ArrayList<ArrayList<KeyValue>>> nextRows() {
     ArrayList<ArrayList<KeyValue>> result = new ArrayList<ArrayList<KeyValue>>();
     ArrayList<KeyValue> arow = new ArrayList<KeyValue>();
+    log.warn("scanning " + s(table) + " start " + s(start) + " end " + s(end) + " family " + s(family) + " qualifier " + s(qualifier) + " regexp " + regexp);
     if (rows >= maxRows)
-      return Deferred.fromResult(result);
+      return Deferred.fromResult(null);
     if (iterator == null) {
       try {
         scanner = conn.createScanner(new String(table), Constants.NO_AUTHS);
       } catch (TableNotFoundException e) {
+        log.error(e, e);
         Deferred.fromError(e);
       }
       if (start != null || end != null)
@@ -78,8 +83,17 @@ public class Scanner {
       }
       result.add(arow);
       rows++;
+    } else {
+      return Deferred.fromResult(null);
     }
+    log.info("result " + result);
     return Deferred.fromResult(result);
+  }
+
+  private String s(byte[] b) {
+    if (b == null)
+      return null;
+    return new String(b);
   }
 
   public void close() {

@@ -42,4 +42,9 @@ public class KeyValue {
   public byte[] value() {
     return value;
   }
+  
+  @Override
+  public String toString() {
+    return new String(key) + " " + new String(family) + ":" + new String(qualifier) + " -> " + new String(value);
+  }
 }
