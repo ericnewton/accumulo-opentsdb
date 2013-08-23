@@ -5,7 +5,7 @@ public class GetRequest {
   final private byte[] table;
   final private byte[] key;
   private byte[] family = null;
-  private byte[] qualifier = null;
+  private byte[][] qualifiers = null;
 
   public GetRequest(byte[] table, byte[] key) {
     this.table = table;
@@ -17,7 +17,12 @@ public class GetRequest {
   }
 
   public GetRequest qualifier(byte[] qualifier) {
-    this.qualifier = qualifier;
+    this.qualifiers = new byte[][] { qualifier };
+    return this;
+  }
+  
+  public GetRequest qualifiers(byte[][] qualifiers) {
+    this.qualifiers = qualifiers;
     return this;
   }
   
@@ -26,8 +31,8 @@ public class GetRequest {
     return this;
   }
   
-  byte[] getQualifier() {
-    return qualifier;
+  byte[][] getQualifiers() {
+    return qualifiers;
   }
   
   byte[] getFamily() {

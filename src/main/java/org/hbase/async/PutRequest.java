@@ -9,18 +9,24 @@ public class PutRequest extends HBaseRpc {
   private final byte[] table;
   private final byte[] row;
   private final byte[] family;
-  private final byte[] qualifier;
-  private final byte[] value;
+  private final byte[][] qualifiers;
+  private final byte[][] values;
 
-  public PutRequest(byte[] table, byte[] row, byte[] family, byte[] qualifier, byte[] value) {
+  public PutRequest(byte[] table, byte[] row, byte[] family, byte[][] qualifiers, byte[][] values) {
     super();
+    if (qualifiers.length != values.length)
+      throw new IllegalArgumentException("qualifiers length != values length");
     this.table = table;
     this.row = row;
     this.family = family;
-    this.qualifier = qualifier;
-    this.value = value;
+    this.qualifiers = qualifiers;
+    this.values = values;
   }
 
+  public PutRequest(byte[] table, byte[] row, byte[] family, byte[] qualifier, byte[] value) {
+    this(table, row, family, new byte[][]{qualifier}, new byte[][]{value});
+  }
+  
   public void setBufferable(boolean b) {
   }
 
@@ -39,12 +45,12 @@ public class PutRequest extends HBaseRpc {
     return family;
   }
 
-  byte[] getQualifier() {
-    return qualifier;
+  byte[][] getQualifiers() {
+    return qualifiers;
   }
 
-  byte[] getValue() {
-    return value;
+  byte[][] getValues() {
+    return values;
   }
 
   String getTable() {
@@ -53,7 +59,9 @@ public class PutRequest extends HBaseRpc {
 
   Mutation getMutation() {
     Mutation m = new Mutation(row);
-    m.put(new Text(family), new Text(qualifier), new Value(value));
+    for (int i = 0; i < qualifiers.length; i++) {
+      m.put(new Text(family), new Text(qualifiers[i]), new Value(values[i]));
+    }
     return m;
   }
   

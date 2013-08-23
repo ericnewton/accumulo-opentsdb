@@ -139,9 +139,11 @@ public class HBaseClient {
     }
     try {
       bs.setRanges(Collections.singletonList(new Range(new Text(get.key()))));
-      if (get.getFamily() != null || get.getQualifier() != null) {
-        if (get.getQualifier() != null)
-          bs.fetchColumn(new Text(get.getFamily()), new Text(get.getQualifier()));
+      if (get.getFamily() != null || get.getQualifiers() != null) {
+        if (get.getQualifiers() != null)
+          for (byte[] qualifier : get.getQualifiers()) {
+            bs.fetchColumn(new Text(get.getFamily()), new Text(qualifier));
+          }
         else
           bs.fetchColumnFamily(new Text(get.getFamily()));
       }
@@ -204,6 +206,10 @@ public class HBaseClient {
   
   public void setFlushInterval(short ms) {
     batchWriterConfig.setMaxLatency((long) ms, TimeUnit.MILLISECONDS);
+  }
+
+  public Deferred<Long> bufferAtomicIncrement(AtomicIncrementRequest inc) {
+    return atomicIncrement(inc);
   }
 
 }

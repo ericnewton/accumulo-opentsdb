@@ -11,12 +11,14 @@ public class KeyValue {
   private final byte[] key;
   private final byte[] family;
   private final byte[] qualifier;
+  private final long timestamp;
   private final byte[] value;
 
-  public KeyValue(byte[] key, byte[] family, byte[] qualifier, byte[] value) {
+  public KeyValue(byte[] key, byte[] family, byte[] qualifier, long timestamp, byte[] value) {
     this.key = key;
     this.family = family;
     this.qualifier = qualifier;
+    this.timestamp = timestamp;
     this.value = value;
   }
 
@@ -24,7 +26,12 @@ public class KeyValue {
     this(TextUtil.getBytes(next.getKey().getRow()),
         TextUtil.getBytes(next.getKey().getColumnFamily()),
         TextUtil.getBytes(next.getKey().getColumnQualifier()),
+        next.getKey().getTimestamp(),
         next.getValue().get());
+  }
+  
+  public KeyValue(byte[] key, byte[] family, byte[] qualifier, byte[] value) {
+    this(key, family, qualifier, 0l, value);
   }
 
   public byte[] key() {
@@ -41,6 +48,10 @@ public class KeyValue {
   
   public byte[] value() {
     return value;
+  }
+  
+  public long timestamp() {
+    return timestamp;
   }
   
   @Override
