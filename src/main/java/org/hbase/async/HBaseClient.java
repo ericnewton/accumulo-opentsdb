@@ -53,7 +53,7 @@ public class HBaseClient {
 
 	public HBaseClient(String zkq) {
 		// Override the defaults if specified in URI form
-		if (zkq != null && "".equals(zkq.trim())) {
+		if (zkq != null && !"".equals(zkq.trim())) {
 			StringBuilder zkb = new StringBuilder(30);
 			String[] zkParts = zkq.split(",");
 			String sep = "";
