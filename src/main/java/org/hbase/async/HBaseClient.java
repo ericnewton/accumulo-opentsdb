@@ -1,5 +1,6 @@
 package org.hbase.async;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,180 +37,216 @@ import com.stumbleupon.async.Deferred;
 
 public class HBaseClient {
 
-  public static final byte[] EMPTY_ARRAY = new byte[0];
+	public static final byte[] EMPTY_ARRAY = new byte[0];
 
-  private static final BatchWriterConfig batchWriterConfig = new BatchWriterConfig();
-  
-  String keepers = "localhost";
-  String instanceId = "test";
-  String user = "root";
-  String password = "secret";
-  
-  private Connector conn;
-  private CuratorFramework curator;
-  private Map<String, DistributedAtomicLong> counters = new HashMap<String, DistributedAtomicLong>();
-  private MultiTableBatchWriter mtbw;
-  
-  public HBaseClient(String zkq) {
-    // TODO: get instance, user and password from zkq
-    keepers = zkq;
-    Instance instance = new ZooKeeperInstance(instanceId, keepers);
-    try {
-      conn = instance.getConnector(user, new PasswordToken(password.getBytes()));
-      curator = CuratorFrameworkFactory.newClient(keepers, new ExponentialBackoffRetry(1000, 3));
-      curator.start();
-    } catch (AccumuloException e) {
-      throw new RuntimeException(e);
-    } catch (AccumuloSecurityException e) {
-      throw new RuntimeException(e);
-    }
-  }
-  
-  public HBaseClient(String zkq, String string) {
-      this(zkq);
-  }
+	private static final BatchWriterConfig batchWriterConfig = new BatchWriterConfig();
 
-  // use curator/zookeeper to implement globally unique numbers
-  synchronized public Deferred<Long> atomicIncrement(AtomicIncrementRequest atomicIncrementRequest) {
-    String kind = new String(atomicIncrementRequest.getKind());
-    DistributedAtomicLong counter = counters.get(kind);
-    if (counter == null) {
-      RetryPolicy policy = new ExponentialBackoffRetry(10, Integer.MAX_VALUE, 1000);
-      counters.put(kind, counter = new DistributedAtomicLong(curator, zooPath("/counters/" + kind), policy));
-    }
-    AtomicValue<Long> increment;
-    try {
-      increment = counter.increment();
-    } catch (Exception e) {
-      return Deferred.fromError(e);
-    }
-    if (increment.succeeded())
-      return Deferred.fromResult(increment.postValue());
-    return Deferred.fromError(new Exception("failed to increment " + kind));
-  }
-  
-  private String zooPath(String path) {
-    return "/opentsdb" + path;
-  }
-  
-  synchronized private void update(String table, Mutation m) throws TableNotFoundException, AccumuloException, AccumuloSecurityException {
-    if (mtbw == null) 
-      mtbw = conn.createMultiTableBatchWriter(batchWriterConfig);
-    mtbw.getBatchWriter(table).addMutation(m);
-  }
+	String keepers = "localhost";
+	String instanceId = "test";
+	String user = "root";
+	String password = "secret";
 
-  // This just does an update, but the one place where it is called is only 
-  // doing a double-check that the expected location is empty.
-  public Deferred<Boolean> compareAndSet(PutRequest put, byte[] value) {
-    try {
-      update(put.getTable(), put.getMutation());
-    } catch (Exception e) {
-      return Deferred.fromError(e);
-    }
-    return Deferred.fromResult(new Boolean(true));
-  }
+	private Connector conn;
+	private CuratorFramework curator;
+	private Map<String, DistributedAtomicLong> counters = new HashMap<String, DistributedAtomicLong>();
+	private MultiTableBatchWriter mtbw;
 
-  // the deleterow implementation is slow; could use iterators to make it efficient
-  public Deferred<Object> delete(DeleteRequest request) {
-    try {
-      if (request.isDeleteRow()) {
-        BatchDeleter deleter = conn.createBatchDeleter(request.getTable(), Constants.NO_AUTHS, batchWriterConfig.getMaxWriteThreads(), batchWriterConfig);
-        deleter.setRanges(Collections.singletonList(new Range(new Text(request.getKey()))));
-        deleter.delete();
-      } else {
-        update(request.getTable(), request.getDeleteMutation());
-      }
-    } catch (Exception e) {
-      return Deferred.fromError(e);
-    }
-    return Deferred.fromResult(new Object());
-  }
+	public HBaseClient(String zkq) {
+		// Override the defaults if specified in URI form
+		if (zkq != null && "".equals(zkq.trim())) {
+			StringBuilder zkb = new StringBuilder(30);
+			String[] zkParts = zkq.split(",");
+			String sep = "";
+			for (String zkPart : zkParts) {
+				if (zkPart.indexOf("://") > 0) {
+					URI uri = URI.create(zkPart);
+					String host = uri.getHost();
+					int port = uri.getPort();
+					String userInfo = uri.getUserInfo();
+					if (userInfo != null) {
+						String[] parts = userInfo.split(":");
+						if (parts.length > 0) {
+							user = parts[0];
+						}
+						if (parts.length > 1) {
+							password = parts[1];
+						}
+					}
+					String path = uri.getPath();
+					if (path != null) {
+						instanceId = path.substring(1);
+					}
+					zkb.append(sep).append(host);
+					if (port > 0) {
+						zkb.append(":").append(port);
+					}
+				} else {
+					zkb.append(sep).append(zkPart);
+				}
+				sep = ",";
+			}
+			keepers = zkb.toString();
+		}
+		Instance instance = new ZooKeeperInstance(instanceId, keepers);
+		try {
+			conn = instance.getConnector(user, new PasswordToken(password.getBytes()));
+			curator = CuratorFrameworkFactory.newClient(keepers, new ExponentialBackoffRetry(1000, 3));
+			curator.start();
+		} catch (AccumuloException e) {
+			throw new RuntimeException(e);
+		} catch (AccumuloSecurityException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
-  public Scanner newScanner(byte[] table) {
-    return new Scanner(table, conn);
-  }
+	public HBaseClient(String zkq, String string) {
+		this(zkq);
+	}
 
-  public Deferred<ArrayList<KeyValue>> get(GetRequest get) {
-    ArrayList<KeyValue> result = new ArrayList<KeyValue>();
-    BatchScanner bs;
-    try {
-      bs = conn.createBatchScanner(get.getTable(), Constants.NO_AUTHS, 5);
-    } catch (TableNotFoundException e) {
-      return Deferred.fromError(e);  
-    }
-    try {
-      bs.setRanges(Collections.singletonList(new Range(new Text(get.key()))));
-      if (get.getFamily() != null || get.getQualifiers() != null) {
-        if (get.getQualifiers() != null)
-          for (byte[] qualifier : get.getQualifiers()) {
-            bs.fetchColumn(new Text(get.getFamily()), new Text(qualifier));
-          }
-        else
-          bs.fetchColumnFamily(new Text(get.getFamily()));
-      }
-      for (Entry<Key,Value> entry : bs) {
-        result.add(new KeyValue(entry));
-      }
-    } finally {
-      bs.close();
-    }
-    return Deferred.fromResult(result);
-  }
+	// use curator/zookeeper to implement globally unique numbers
+	synchronized public Deferred<Long> atomicIncrement(AtomicIncrementRequest atomicIncrementRequest) {
+		String kind = new String(atomicIncrementRequest.getKind());
+		DistributedAtomicLong counter = counters.get(kind);
+		if (counter == null) {
+			RetryPolicy policy = new ExponentialBackoffRetry(10, Integer.MAX_VALUE, 1000);
+			counters.put(kind, counter = new DistributedAtomicLong(curator, zooPath("/counters/" + kind), policy));
+		}
+		AtomicValue<Long> increment;
+		try {
+			increment = counter.increment();
+		} catch (Exception e) {
+			return Deferred.fromError(e);
+		}
+		if (increment.succeeded())
+			return Deferred.fromResult(increment.postValue());
+		return Deferred.fromError(new Exception("failed to increment " + kind));
+	}
 
-  public Deferred<Object> put(PutRequest put) {
-    try {
-      update(put.getTable(), put.getMutation());
-      return Deferred.fromResult(new Object());
-    } catch (Exception ex) {
-      return Deferred.fromError(ex);
-    }
-  }
+	private String zooPath(String path) {
+		return "/opentsdb" + path;
+	}
 
-  public ClientStats stats() {
-    return new ClientStats();
-  }
+	synchronized private void update(String table, Mutation m) throws TableNotFoundException, AccumuloException,
+			AccumuloSecurityException {
+		if (mtbw == null)
+			mtbw = conn.createMultiTableBatchWriter(batchWriterConfig);
+		mtbw.getBatchWriter(table).addMutation(m);
+	}
 
-  public Deferred<Object> flush() {
-    if (mtbw != null)
-      try {
-        mtbw.flush();
-      } catch (MutationsRejectedException e) {
-       return Deferred.fromError(e);
-      }
-    return Deferred.fromResult(new Object());
-  }
+	// This just does an update, but the one place where it is called is only
+	// doing a double-check that the expected location is empty.
+	public Deferred<Boolean> compareAndSet(PutRequest put, byte[] value) {
+		try {
+			update(put.getTable(), put.getMutation());
+		} catch (Exception e) {
+			return Deferred.fromError(e);
+		}
+		return Deferred.fromResult(new Boolean(true));
+	}
 
-  public Deferred<Object> ensureTableExists(String table) {
-    if (!conn.tableOperations().exists(table))
-      try {
-        conn.tableOperations().create(table);
-      } catch (Exception e) {
-        Deferred.fromError(e);
-      }
-    return Deferred.fromResult(new Object());
-  }
+	// the deleterow implementation is slow; could use iterators to make it
+	// efficient
+	public Deferred<Object> delete(DeleteRequest request) {
+		try {
+			if (request.isDeleteRow()) {
+				BatchDeleter deleter = conn.createBatchDeleter(request.getTable(), Constants.NO_AUTHS,
+						batchWriterConfig.getMaxWriteThreads(), batchWriterConfig);
+				deleter.setRanges(Collections.singletonList(new Range(new Text(request.getKey()))));
+				deleter.delete();
+			} else {
+				update(request.getTable(), request.getDeleteMutation());
+			}
+		} catch (Exception e) {
+			return Deferred.fromError(e);
+		}
+		return Deferred.fromResult(new Object());
+	}
 
-  public Deferred<Object> shutdown() {
-    try {
-      if (mtbw != null)
-        mtbw.close();
-      mtbw = null;
-      return Deferred.fromResult(new Object()); 
-    } catch (MutationsRejectedException e) {
-      return Deferred.fromError(e);
-    }
-  }
+	public Scanner newScanner(byte[] table) {
+		return new Scanner(table, conn);
+	}
 
-  public long getFlushInterval() {
-    return batchWriterConfig.getMaxLatency(TimeUnit.MILLISECONDS);
-  }
-  
-  public void setFlushInterval(short ms) {
-    batchWriterConfig.setMaxLatency((long) ms, TimeUnit.MILLISECONDS);
-  }
+	public Deferred<ArrayList<KeyValue>> get(GetRequest get) {
+		ArrayList<KeyValue> result = new ArrayList<KeyValue>();
+		BatchScanner bs;
+		try {
+			bs = conn.createBatchScanner(get.getTable(), Constants.NO_AUTHS, 5);
+		} catch (TableNotFoundException e) {
+			return Deferred.fromError(e);
+		}
+		try {
+			bs.setRanges(Collections.singletonList(new Range(new Text(get.key()))));
+			if (get.getFamily() != null || get.getQualifiers() != null) {
+				if (get.getQualifiers() != null)
+					for (byte[] qualifier : get.getQualifiers()) {
+						bs.fetchColumn(new Text(get.getFamily()), new Text(qualifier));
+					}
+				else
+					bs.fetchColumnFamily(new Text(get.getFamily()));
+			}
+			for (Entry<Key, Value> entry : bs) {
+				result.add(new KeyValue(entry));
+			}
+		} finally {
+			bs.close();
+		}
+		return Deferred.fromResult(result);
+	}
 
-  public Deferred<Long> bufferAtomicIncrement(AtomicIncrementRequest inc) {
-    return atomicIncrement(inc);
-  }
+	public Deferred<Object> put(PutRequest put) {
+		try {
+			update(put.getTable(), put.getMutation());
+			return Deferred.fromResult(new Object());
+		} catch (Exception ex) {
+			return Deferred.fromError(ex);
+		}
+	}
+
+	public ClientStats stats() {
+		return new ClientStats();
+	}
+
+	public Deferred<Object> flush() {
+		if (mtbw != null)
+			try {
+				mtbw.flush();
+			} catch (MutationsRejectedException e) {
+				return Deferred.fromError(e);
+			}
+		return Deferred.fromResult(new Object());
+	}
+
+	public Deferred<Object> ensureTableExists(String table) {
+		if (!conn.tableOperations().exists(table))
+			try {
+				conn.tableOperations().create(table);
+			} catch (Exception e) {
+				Deferred.fromError(e);
+			}
+		return Deferred.fromResult(new Object());
+	}
+
+	public Deferred<Object> shutdown() {
+		try {
+			if (mtbw != null)
+				mtbw.close();
+			mtbw = null;
+			return Deferred.fromResult(new Object());
+		} catch (MutationsRejectedException e) {
+			return Deferred.fromError(e);
+		}
+	}
+
+	public long getFlushInterval() {
+		return batchWriterConfig.getMaxLatency(TimeUnit.MILLISECONDS);
+	}
+
+	public void setFlushInterval(short ms) {
+		batchWriterConfig.setMaxLatency((long) ms, TimeUnit.MILLISECONDS);
+	}
+
+	public Deferred<Long> bufferAtomicIncrement(AtomicIncrementRequest inc) {
+		return atomicIncrement(inc);
+	}
 
 }
