@@ -52,6 +52,14 @@ NOTE: The top-level OpenTSDB directory shown here i.e., /opentsdb is for referen
 
 6) Create the first few tables.  Presumably using a command similar to the one under "Checkout, compile, and start OpenTSDB" described under http://opentsdb.net/getting-started.html
 
+7) Optionally modify the configuration to specify the Accumulo username and password:
+	Default:  tsd.storage.hbase.zk_quorum = localhost
+	  which implies the default connection string for Accumulo:
+	Accumulo: tsd.storage.hbase.zk_quorum = accumulo://root:secret@localhost:2181/test
+
+	The format for the Accumulo URI is:
+		accumulo://<username>:<password>@<zookeeper host>:<zookeeper port>/<instance ID>
+
 
        
 
