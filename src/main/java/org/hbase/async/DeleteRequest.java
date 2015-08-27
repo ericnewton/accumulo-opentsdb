@@ -19,6 +19,13 @@ public class DeleteRequest extends HBaseRpc {
   public DeleteRequest(byte[] table, byte[] key, byte[] family, byte[] qualifier) {
     this(table, key, family, new byte[][]{qualifier});
   }
+  
+  public DeleteRequest(byte[] table, KeyValue kv) {
+    this.table = table;
+    this.key = kv.key();
+    this.family = kv.family();
+    this.qualifiers = new byte[][]{kv.qualifier()};
+  }
 
   public DeleteRequest(byte[] table, byte[] key) {
     this.table = table;

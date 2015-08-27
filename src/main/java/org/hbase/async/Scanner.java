@@ -96,10 +96,11 @@ public class Scanner {
     return new String(b);
   }
 
-  public void close() {
+  public Deferred<Object> close() {
     iterator = null;
     if (scanner != null)
       scanner.close();
+    return Deferred.fromResult(null);
   }
 
   public void setStartKey(byte[] start_row) {

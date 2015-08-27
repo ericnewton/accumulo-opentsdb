@@ -103,6 +103,10 @@ public class HBaseClient {
 		this(zkq);
 	}
 
+	public HBaseClient(Config cfg) {
+	  this(cfg.getString("hbase.zookeeper.znode.parent"));
+	}
+
 	// use curator/zookeeper to implement globally unique numbers
 	synchronized public Deferred<Long> atomicIncrement(AtomicIncrementRequest atomicIncrementRequest) {
 		String kind = new String(atomicIncrementRequest.getKind());
@@ -113,7 +117,7 @@ public class HBaseClient {
 		}
 		AtomicValue<Long> increment;
 		try {
-			increment = counter.increment();
+			increment = counter.add(atomicIncrementRequest.getCount());
 		} catch (Exception e) {
 			return Deferred.fromError(e);
 		}
@@ -202,6 +206,10 @@ public class HBaseClient {
 		}
 	}
 
+	public Deferred<Object> append(AppendRequest append) {
+	  throw new UnsupportedOperationException();
+	}
+
 	public ClientStats stats() {
 		return new ClientStats();
 	}
@@ -242,7 +250,7 @@ public class HBaseClient {
 	}
 
 	public void setFlushInterval(short ms) {
-		batchWriterConfig.setMaxLatency((long) ms, TimeUnit.MILLISECONDS);
+		batchWriterConfig.setMaxLatency(ms, TimeUnit.MILLISECONDS);
 	}
 
 	public Deferred<Long> bufferAtomicIncrement(AtomicIncrementRequest inc) {
