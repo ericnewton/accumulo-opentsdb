@@ -40,6 +40,9 @@ public class HBaseClient {
 	public static final byte[] EMPTY_ARRAY = new byte[0];
 
 	private static final BatchWriterConfig batchWriterConfig = new BatchWriterConfig();
+        static {
+           batchWriterConfig.setMaxLatency(5, TimeUnit.SECONDS);
+        }
 
 	String keepers = "localhost";
 	String instanceId = "test";
