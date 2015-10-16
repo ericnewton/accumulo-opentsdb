@@ -24,9 +24,6 @@ Before adding this patch we assume you already have the following software insta
 * OpenTSDB "next" git branch (See https://github.com/OpenTSDB/opentsdb/tree/next)
    Info about OpenTSDB can be found at http://opentsdb.net
 
-* Maven 3.1.0 (See http://maven.apache.org for Download, and configuration instructions)
-
-
 INSTALLATION
 ------------
 The following steps add the accumulo-opentsdb patch on top of your existing OpenTSDB install

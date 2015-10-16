@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Placeholder: doesn't do anything
  */
 public class ClientStats {
-  
+
   final private Number ZERO = new AtomicInteger(0);
 
   public Number rootLookups() {
@@ -68,5 +68,13 @@ public class ClientStats {
   public Number numRpcDelayedDueToNSRE() {
     return ZERO;
   }
-  
+
+  public Number regionClients() {
+    return ZERO;
+  }
+
+  public Number idleConnectionsClosed() {
+    return ZERO;
+  }
+
 }
